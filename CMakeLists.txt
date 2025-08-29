@@ -17,6 +17,10 @@ if (EMSCRIPTEN)
     set(VCPKG_TARGET_TRIPLET "wasm32-emscripten")
 endif()
 
+# FIXME
+find_package(SndFile CONFIG REQUIRED)
+find_package(OpenAL CONFIG REQUIRED)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 
@@ -39,6 +43,12 @@ if (EMSCRIPTEN)
     file(COPY ${PROJECT_SOURCE_DIR}/resources DESTINATION ${CMAKE_BINARY_DIR})
 
 else()
+
+    target_link_libraries(
+        main PRIVATE
+        SndFile::sndfile
+        OpenAL::OpenAL
+    )
 
     add_custom_command(
         TARGET main POST_BUILD
