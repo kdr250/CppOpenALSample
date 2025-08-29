@@ -14,3 +14,4 @@ C++とOpenALを学習する用のレポジトリ
 ## 参考にしたURL
 - [GitHub - openal-soft](https://github.com/kcat/openal-soft)
 - [GitHub - openal-soft > examples > alplay.c](https://github.com/kcat/openal-soft/blob/master/examples/alplay.c)
+- [emscripten - Audio](https://emscripten.org/docs/porting/Audio.html)
