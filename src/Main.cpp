@@ -13,8 +13,11 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
-#include <AL/efx-presets.h>
-#include <AL/efx.h>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#endif
 
 /* InitAL opens a device and sets up a context using default attributes, making
  * the program ready to call OpenAL functions. */
@@ -64,6 +67,7 @@ const char *FormatName(ALenum format) {
             return "Mono, S16";
         case AL_FORMAT_MONO_FLOAT32:
             return "Mono, Float32";
+#ifndef __EMSCRIPTEN__
         case AL_FORMAT_MONO_MULAW:
             return "Mono, muLaw";
         case AL_FORMAT_MONO_ALAW_EXT:
@@ -72,12 +76,14 @@ const char *FormatName(ALenum format) {
             return "Mono, IMA4 ADPCM";
         case AL_FORMAT_MONO_MSADPCM_SOFT:
             return "Mono, MS ADPCM";
+#endif
         case AL_FORMAT_STEREO8:
             return "Stereo, U8";
         case AL_FORMAT_STEREO16:
             return "Stereo, S16";
         case AL_FORMAT_STEREO_FLOAT32:
             return "Stereo, Float32";
+#ifndef __EMSCRIPTEN__
         case AL_FORMAT_STEREO_MULAW:
             return "Stereo, muLaw";
         case AL_FORMAT_STEREO_ALAW_EXT:
@@ -152,6 +158,7 @@ const char *FormatName(ALenum format) {
             return "UHJ 4-channel, S16";
         case AL_FORMAT_UHJ4CHN_FLOAT32_SOFT:
             return "UHJ 4-channel, Float32";
+#endif
     }
     return "Unknown Format";
 }
@@ -277,15 +284,18 @@ static ALuint LoadSound(const char *filename) {
             format = AL_FORMAT_MONO16;
         else if (sample_format == Float)
             format = AL_FORMAT_MONO_FLOAT32;
+#ifndef __EMSCRIPTEN__
         else if (sample_format == IMA4)
             format = AL_FORMAT_MONO_IMA4;
         else if (sample_format == MSADPCM)
             format = AL_FORMAT_MONO_MSADPCM_SOFT;
+#endif
     } else if (sfinfo.channels == 2) {
         if (sample_format == Int16)
             format = AL_FORMAT_STEREO16;
         else if (sample_format == Float)
             format = AL_FORMAT_STEREO_FLOAT32;
+#ifndef __EMSCRIPTEN__
         else if (sample_format == IMA4)
             format = AL_FORMAT_STEREO_IMA4;
         else if (sample_format == MSADPCM)
@@ -304,6 +314,7 @@ static ALuint LoadSound(const char *filename) {
             else if (sample_format == Float)
                 format = AL_FORMAT_BFORMAT3D_FLOAT32;
         }
+#endif
     }
     if (!format) {
         fprintf(stderr, "Unsupported channel count: %d\n", sfinfo.channels);
@@ -346,8 +357,10 @@ static ALuint LoadSound(const char *filename) {
      */
     buffer = 0;
     alGenBuffers(1, &buffer);
+#ifndef __EMSCRIPTEN__
     if (splblockalign > 1)
         alBufferi(buffer, AL_UNPACK_BLOCK_ALIGNMENT_SOFT, splblockalign);
+#endif
     alBufferData(buffer, format, membuf, num_bytes, sfinfo.samplerate);
 
     free(membuf);
@@ -367,7 +380,7 @@ static ALuint LoadSound(const char *filename) {
 
 /* CloseAL closes the device belonging to the current context, and destroys the
  * context. */
-void CloseAL(void) {
+void CloseAL() {
     ALCdevice *device;
     ALCcontext *ctx;
 
@@ -382,6 +395,57 @@ void CloseAL(void) {
     alcCloseDevice(device);
 }
 
+void Cleanup();
+
+// variables
+ALuint uiSource;
+ALuint uiBuffer;
+ALint iState = AL_PLAYING;
+float x = 75.0f;
+float y = 0.0f;
+float z = -10.0f;
+float dx = -1.0f;
+float dy = 0.1f;
+float dz = 0.25f;
+
+void Loop() {
+    if (std::fabs(x) > 75.0f) {
+        dx = -dx;
+    }
+    if (std::fabs(y) > 5.0f) {
+        dy = -dy;
+    }
+    if (std::fabs(z) > 10.0f) {
+        dz = -dz;
+    }
+    alSource3f(uiSource, AL_VELOCITY, dx, dy, dz);
+
+    x += dx;
+    y += dy;
+    z += dz;
+    alSource3f(uiSource, AL_POSITION, x, y, z);
+
+    // Get Source State
+    alGetSourcei(uiSource, AL_SOURCE_STATE, &iState);
+
+#ifdef __EMSCRIPTEN__
+    if (iState != AL_PLAYING) {
+        emscripten_cancel_main_loop();
+        Cleanup();
+        return;
+    }
+#endif
+}
+
+void Cleanup() {
+    // Clean up by deleting Sources and Buffers
+    alSourceStop(uiSource);
+    alDeleteSources(1, &uiSource);
+    alDeleteBuffers(1, &uiBuffer);
+
+    CloseAL();
+}
+
 int main() {
     // Initialize Framework
     if (InitAL() != 0) {
@@ -389,7 +453,7 @@ int main() {
     }
 
     // Load the sound into a buffer
-    ALuint uiBuffer = LoadSound("resources/test.wav");
+    uiBuffer = LoadSound("resources/test.wav");
     if (!uiBuffer) {
         CloseAL();
         return EXIT_FAILURE;
@@ -399,7 +463,6 @@ int main() {
     alListener3f(AL_POSITION, 0, 0, 0);
 
     // Generate a Source to playback the Buffer
-    ALuint uiSource;
     alGenSources(1, &uiSource);
 
     // Attach Source to Buffer
@@ -407,14 +470,6 @@ int main() {
 
     // Set the Doppler effect factor
     alDopplerFactor(10);
-
-    // Initialize variables used to reposition the source
-    float x = 75.0f;
-    float y = 0.0f;
-    float z = -10.0f;
-    float dx = -1.0f;
-    float dy = 0.1f;
-    float dz = 0.25f;
 
     // Set Initial Source properties
     alSourcef(uiSource, AL_GAIN, 8.0f);
@@ -425,36 +480,14 @@ int main() {
     // Play Source
     alSourcePlay(uiSource);
 
-    ALint iState;
-    do {
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop(Loop, 100, true);
+#else
+    while (iState == AL_PLAYING) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        if (std::fabs(x) > 75.0f) {
-            dx = -dx;
-        }
-        if (std::fabs(y) > 5.0f) {
-            dy = -dy;
-        }
-        if (std::fabs(z) > 10.0f) {
-            dz = -dz;
-        }
-        alSource3f(uiSource, AL_VELOCITY, dx, dy, dz);
-
-        x += dx;
-        y += dy;
-        z += dz;
-        alSource3f(uiSource, AL_POSITION, x, y, z);
-
-        // Get Source State
-        alGetSourcei(uiSource, AL_SOURCE_STATE, &iState);
-    } while (iState == AL_PLAYING);
-
-    // Clean up by deleting Sources and Buffers
-    alSourceStop(uiSource);
-    alDeleteSources(1, &uiSource);
-    alDeleteBuffers(1, &uiBuffer);
-
-    CloseAL();
+        Loop();
+    }
+#endif
 
     return EXIT_SUCCESS;
 }

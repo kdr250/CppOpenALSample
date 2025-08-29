@@ -15,11 +15,11 @@ project(main VERSION 1.0)
 
 if (EMSCRIPTEN)
     set(VCPKG_TARGET_TRIPLET "wasm32-emscripten")
+else()
+    find_package(OpenAL CONFIG REQUIRED)
 endif()
 
-# FIXME
 find_package(SndFile CONFIG REQUIRED)
-find_package(OpenAL CONFIG REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
@@ -37,10 +37,15 @@ add_executable(
 
 if (EMSCRIPTEN)
 
-    set(USE_FLAGS "--preload-file resources/")
+    set(USE_FLAGS "-l openal --preload-file resources/")
     set(CMAKE_CXX_FLAGS ${USE_FLAGS})
     set_target_properties(main PROPERTIES SUFFIX ".html")
     file(COPY ${PROJECT_SOURCE_DIR}/resources DESTINATION ${CMAKE_BINARY_DIR})
+
+    target_link_libraries(
+        main PRIVATE
+        SndFile::sndfile
+    )
 
 else()
 

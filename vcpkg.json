@@ -1,7 +1,10 @@
 {
     "builtin-baseline": "5300a2a461a53b76405db4fcbe6aeb0eea43935d",
     "dependencies": [
-        "openal-soft",
+        {
+            "name": "openal-soft",
+            "platform": "!wasm32"
+        },
         "libsndfile"
     ]
 }
